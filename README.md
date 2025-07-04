@@ -6,7 +6,7 @@ A unified deployment solution for homelab services on ProxMox VE, providing stan
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ProxMox_VM_TimeShift.git
+git clone https://github.com/notdabob/ProxMox_VM_TimeShift.git
 cd ProxMox_VM_TimeShift
 
 # Create a hybrid VM (recommended)
