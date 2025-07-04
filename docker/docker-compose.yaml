@@ -1,0 +1,347 @@
+version: '3.8'
+
+# Unified Docker Compose for ProxMox Homelab Stack
+# Supports MCP, iDRAC, Time-Shift, and monitoring services
+# Standardized port allocation and service discovery
+
+services:
+  # ===== MCP SERVICES (7001-7010) =====
+  context7-mcp:
+    image: lordsomer/context7-mcp:latest
+    container_name: context7-mcp
+    ports:
+      - "7001:7001"
+    volumes:
+      - context7_data:/app/data
+      - shared_workspace:/workspace:ro
+    environment:
+      - NODE_ENV=production
+      - PORT=7001
+      - SERVICE_NAME=context7-mcp
+      - SERVICE_TYPE=mcp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - homelab-network
+    labels:
+      - "homelab.service=mcp"
+      - "homelab.port=7001"
+      - "homelab.description=SQLite context management"
+
+  desktop-commander:
+    image: lordsomer/desktop-commander:latest
+    container_name: desktop-commander
+    ports:
+      - "7002:7002"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - desktop_commander_data:/app/data
+      - shared_workspace:/workspace
+    environment:
+      - NODE_ENV=production
+      - PORT=7002
+      - SERVICE_NAME=desktop-commander
+      - SERVICE_TYPE=mcp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - homelab-network
+    labels:
+      - "homelab.service=mcp"
+      - "homelab.port=7002"
+      - "homelab.description=System control capabilities"
+
+  filesystem-mcp:
+    image: lordsomer/filesystem-mcp:latest
+    container_name: filesystem-mcp
+    ports:
+      - "7003:7003"
+    volumes:
+      - shared_workspace:/workspace
+      - filesystem_mcp_config:/app/config
+    environment:
+      - NODE_ENV=production
+      - PORT=7003
+      - WORKSPACE_DIR=/workspace
+      - SERVICE_NAME=filesystem-mcp
+      - SERVICE_TYPE=mcp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - homelab-network
+    labels:
+      - "homelab.service=mcp"
+      - "homelab.port=7003"
+      - "homelab.description=File system access"
+
+  # ===== iDRAC MANAGEMENT SERVICES (8080-8090) =====
+  idrac-manager:
+    build:
+      context: ./services/idrac-manager
+      dockerfile: Dockerfile
+    container_name: idrac-manager
+    ports:
+      - "8080:80"      # Web dashboard
+      - "8765:8765"    # API server
+    volumes:
+      - idrac_data:/app/data
+      - idrac_logs:/app/logs
+      - shared_workspace:/workspace
+    environment:
+      - SERVICE_NAME=idrac-manager
+      - SERVICE_TYPE=idrac
+      - DATA_DIR=/app/data
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - homelab-network
+    labels:
+      - "homelab.service=idrac"
+      - "homelab.port=8080"
+      - "homelab.api_port=8765"
+      - "homelab.description=Dell iDRAC management dashboard"
+
+  # ===== TIME-SHIFT SERVICES (8090-8099) =====
+  time-shift-proxy:
+    build:
+      context: ../archive/legacy-time-shift-vm/time-shift-proxmox
+      dockerfile: Dockerfile
+    container_name: time-shift-proxy
+    ports:
+      - "8090:8090"    # Time-shift proxy
+    volumes:
+      - timeshift_config:/app/config
+      - timeshift_logs:/app/logs
+      - shared_workspace:/workspace:ro
+    environment:
+      - SERVICE_NAME=time-shift-proxy
+      - SERVICE_TYPE=timeshift
+      - PROXY_PORT=8090
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - homelab-network
+    labels:
+      - "homelab.service=timeshift"
+      - "homelab.port=8090"
+      - "homelab.description=SSL certificate time-shift proxy"
+
+  # ===== MONITORING & DISCOVERY SERVICES (9000-9010) =====
+  service-discovery:
+    image: alpine:latest
+    container_name: service-discovery
+    ports:
+      - "9000:9000"    # Service registry API
+    volumes:
+      - service_registry:/app/registry
+      - shared_workspace:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - SERVICE_NAME=service-discovery
+      - SERVICE_TYPE=monitoring
+      - REGISTRY_PORT=9000
+    restart: unless-stopped
+    command: |
+      sh -c "
+        apk add --no-cache curl jq docker-cli &&
+        mkdir -p /app/registry &&
+        while true; do
+          echo '{\"timestamp\":\"'$(date -Iseconds)'\",\"services\":[' > /app/registry/services.json
+          docker ps --format 'table {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.Labels}}' | tail -n +2 | while read line; do
+            echo '{},' >> /app/registry/services.json
+          done
+          echo ']}' >> /app/registry/services.json
+          sleep 30
+        done
+      "
+    networks:
+      - homelab-network
+    labels:
+      - "homelab.service=monitoring"
+      - "homelab.port=9000"
+      - "homelab.description=Service discovery and registry"
+
+  health-monitor:
+    image: alpine:latest
+    container_name: health-monitor
+    ports:
+      - "9001:9001"    # Health monitoring dashboard
+    volumes:
+      - health_data:/app/data
+      - shared_workspace:/workspace:ro
+    environment:
+      - SERVICE_NAME=health-monitor
+      - SERVICE_TYPE=monitoring
+      - MONITOR_PORT=9001
+    restart: unless-stopped
+    command: |
+      sh -c "
+        apk add --no-cache curl jq &&
+        mkdir -p /app/data &&
+        while true; do
+          timestamp=\$(date -Iseconds)
+          echo '{\"timestamp\":\"\$timestamp\",\"health_checks\":[' > /app/data/health.json
+          
+          # Check all services
+          for service in context7-mcp desktop-commander filesystem-mcp idrac-manager time-shift-proxy; do
+            if docker inspect \$service >/dev/null 2>&1; then
+              health=\$(docker inspect --format='{{.State.Health.Status}}' \$service 2>/dev/null || echo 'unknown')
+              echo '{\"service\":\"\$service\",\"status\":\"\$health\",\"timestamp\":\"\$timestamp\"},' >> /app/data/health.json
+            fi
+          done
+          
+          echo ']}' >> /app/data/health.json
+          sleep 15
+        done
+      "
+    networks:
+      - homelab-network
+    labels:
+      - "homelab.service=monitoring"
+      - "homelab.port=9001"
+      - "homelab.description=Health monitoring dashboard"
+
+  # ===== UNIFIED DASHBOARD (9010) =====
+  unified-dashboard:
+    image: nginx:alpine
+    container_name: unified-dashboard
+    ports:
+      - "9010:80"      # Unified dashboard
+    volumes:
+      - ./config/nginx-unified.conf:/etc/nginx/nginx.conf:ro
+      - dashboard_static:/usr/share/nginx/html
+      - shared_workspace:/workspace:ro
+    environment:
+      - SERVICE_NAME=unified-dashboard
+      - SERVICE_TYPE=dashboard
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - homelab-network
+    labels:
+      - "homelab.service=dashboard"
+      - "homelab.port=9010"
+      - "homelab.description=Unified homelab dashboard"
+    depends_on:
+      - service-discovery
+      - health-monitor
+
+# ===== VOLUMES =====
+volumes:
+  # MCP volumes
+  context7_data:
+    driver: local
+    labels:
+      - "homelab.volume=mcp"
+  desktop_commander_data:
+    driver: local
+    labels:
+      - "homelab.volume=mcp"
+  filesystem_mcp_config:
+    driver: local
+    labels:
+      - "homelab.volume=mcp"
+  
+  # iDRAC volumes
+  idrac_data:
+    driver: local
+    labels:
+      - "homelab.volume=idrac"
+  idrac_logs:
+    driver: local
+    labels:
+      - "homelab.volume=idrac"
+  
+  # Time-shift volumes
+  timeshift_config:
+    driver: local
+    labels:
+      - "homelab.volume=timeshift"
+  timeshift_logs:
+    driver: local
+    labels:
+      - "homelab.volume=timeshift"
+  
+  # Monitoring volumes
+  service_registry:
+    driver: local
+    labels:
+      - "homelab.volume=monitoring"
+  health_data:
+    driver: local
+    labels:
+      - "homelab.volume=monitoring"
+  dashboard_static:
+    driver: local
+    labels:
+      - "homelab.volume=dashboard"
+  
+  # Shared workspace
+  shared_workspace:
+    driver: local
+    labels:
+      - "homelab.volume=shared"
+
+# ===== NETWORKS =====
+networks:
+  homelab-network:
+    name: homelab-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+    labels:
+      - "homelab.network=main"
+
+# ===== CONFIGURATION PROFILES =====
+# Use with: docker-compose --profile <profile> up -d
+
+# MCP only profile
+x-mcp-services: &mcp-services
+  profiles: ["mcp", "full"]
+
+# iDRAC only profile  
+x-idrac-services: &idrac-services
+  profiles: ["idrac", "full"]
+
+# Time-shift only profile
+x-timeshift-services: &timeshift-services
+  profiles: ["timeshift", "full"]
+
+# Monitoring only profile
+x-monitoring-services: &monitoring-services
+  profiles: ["monitoring", "full"]

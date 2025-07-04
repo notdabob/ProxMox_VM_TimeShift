@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProxMox Homelab Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .status-bar {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin: 5px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-healthy { background-color: #4CAF50; }
+        .status-warning { background-color: #FF9800; }
+        .status-error { background-color: #F44336; }
+        .status-unknown { background-color: #9E9E9E; }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .service-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .service-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .service-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .service-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-running { background-color: #E8F5E8; color: #2E7D32; }
+        .status-stopped { background-color: #FFEBEE; color: #C62828; }
+        .status-starting { background-color: #FFF3E0; color: #F57C00; }
+
+        .service-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+
+        .service-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-primary {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #1976D2;
+        }
+
+        .btn-secondary {
+            background-color: #6C757D;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #545B62;
+        }
+
+        .btn-success {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #45A049;
+        }
+
+        .monitoring-section {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .monitoring-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .metric-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2196F3;
+        }
+
+        .metric-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            margin-top: 30px;
+        }
+
+        .refresh-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.9);
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 ProxMox Homelab Dashboard</h1>
+            <p>Unified management for your homelab services</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-indicator status-healthy"></div>
+                <span>System Status: <strong>Healthy</strong></span>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator status-healthy"></div>
+                <span>Services: <strong><span id="service-count">0</span> Running</strong></span>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator status-healthy"></div>
+                <span>Last Updated: <strong><span id="last-updated">--</span></strong></span>
+            </div>
+        </div>
+
+        <div class="services-grid" id="services-grid">
+            <!-- Services will be populated by JavaScript -->
+        </div>
+
+        <div class="monitoring-section">
+            <h2 class="monitoring-title">📊 System Metrics</h2>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value" id="uptime">--</div>
+                    <div class="metric-label">System Uptime</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="cpu-usage">--</div>
+                    <div class="metric-label">CPU Usage</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="memory-usage">--</div>
+                    <div class="metric-label">Memory Usage</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="disk-usage">--</div>
+                    <div class="metric-label">Disk Usage</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>ProxMox Homelab Unified Stack v1.0.0 | Built with ❤️ for the homelab community</p>
+        </div>
+    </div>
+
+    <div class="refresh-indicator">
+        🔄 Auto-refresh: <span id="refresh-countdown">30</span>s
+    </div>
+
+    <script>
+        // Service definitions
+        const services = [
+            {
+                name: 'Context7 MCP',
+                description: 'SQLite context management for AI workflows',
+                port: 7001,
+                type: 'mcp',
+                icon: '🧠',
+                status: 'running'
+            },
+            {
+                name: 'Desktop Commander',
+                description: 'System control and automation capabilities',
+                port: 7002,
+                type: 'mcp',
+                icon: '🖥️',
+                status: 'running'
+            },
+            {
+                name: 'Filesystem MCP',
+                description: 'File system access and management',
+                port: 7003,
+                type: 'mcp',
+                icon: '📁',
+                status: 'running'
+            },
+            {
+                name: 'iDRAC Manager',
+                description: 'Dell server management dashboard',
+                port: 8080,
+                type: 'idrac',
+                icon: '🖥️',
+                status: 'running'
+            },
+            {
+                name: 'iDRAC API',
+                description: 'REST API for server automation',
+                port: 8765,
+                type: 'idrac',
+                icon: '🔌',
+                status: 'running'
+            },
+            {
+                name: 'Time-Shift Proxy',
+                description: 'SSL certificate time manipulation proxy',
+                port: 8090,
+                type: 'timeshift',
+                icon: '⏰',
+                status: 'running'
+            },
+            {
+                name: 'Service Discovery',
+                description: 'Service registry and discovery',
+                port: 9000,
+                type: 'monitoring',
+                icon: '🔍',
+                status: 'running'
+            },
+            {
+                name: 'Health Monitor',
+                description: 'Real-time health monitoring',
+                port: 9001,
+                type: 'monitoring',
+                icon: '❤️',
+                status: 'running'
+            }
+        ];
+
+        // Get current host for service URLs
+        const currentHost = window.location.hostname;
+
+        // Render services
+        function renderServices() {
+            const servicesGrid = document.getElementById('services-grid');
+            servicesGrid.innerHTML = '';
+
+            services.forEach(service => {
+                const serviceCard = document.createElement('div');
+                serviceCard.className = 'service-card';
+                
+                const statusClass = service.status === 'running' ? 'status-running' : 
+                                  service.status === 'stopped' ? 'status-stopped' : 'status-starting';
+
+                serviceCard.innerHTML = `
+                    <div class="service-header">
+                        <div class="service-title">${service.icon} ${service.name}</div>
+                        <div class="service-status ${statusClass}">${service.status}</div>
+                    </div>
+                    <div class="service-description">${service.description}</div>
+                    <div class="service-actions">
+                        <a href="http://${currentHost}:${service.port}" target="_blank" class="btn btn-primary">
+                            🚀 Open Service
+                        </a>
+                        <button class="btn btn-secondary" onclick="checkHealth('${service.name}', ${service.port})">
+                            🔍 Health Check
+                        </button>
+                        ${service.type === 'mcp' ? '<button class="btn btn-success" onclick="openMCPConfig()">⚙️ Configure</button>' : ''}
+                    </div>
+                `;
+                
+                servicesGrid.appendChild(serviceCard);
+            });
+
+            // Update service count
+            document.getElementById('service-count').textContent = services.filter(s => s.status === 'running').length;
+        }
+
+        // Health check function
+        async function checkHealth(serviceName, port) {
+            try {
+                const response = await fetch(`http://${currentHost}:${port}/health`, {
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                alert(`${serviceName} health check initiated. Check browser console for details.`);
+            } catch (error) {
+                alert(`Health check for ${serviceName} failed: ${error.message}`);
+            }
+        }
+
+        // MCP configuration function
+        function openMCPConfig() {
+            alert('MCP configuration will open the client auto-configuration tool.');
+            // In a real implementation, this would open a configuration modal or redirect
+        }
+
+        // Update metrics
+        function updateMetrics() {
+            // Simulate metrics (in real implementation, these would come from APIs)
+            document.getElementById('uptime').textContent = '2d 14h';
+            document.getElementById('cpu-usage').textContent = '23%';
+            document.getElementById('memory-usage').textContent = '67%';
+            document.getElementById('disk-usage').textContent = '45%';
+        }
+
+        // Update last updated time
+        function updateLastUpdated() {
+            const now = new Date();
+            document.getElementById('last-updated').textContent = now.toLocaleTimeString();
+        }
+
+        // Refresh countdown
+        let refreshCountdown = 30;
+        function updateRefreshCountdown() {
+            document.getElementById('refresh-countdown').textContent = refreshCountdown;
+            refreshCountdown--;
+            
+            if (refreshCountdown < 0) {
+                refreshCountdown = 30;
+                refreshData();
+            }
+        }
+
+        // Refresh data
+        async function refreshData() {
+            try {
+                // In a real implementation, this would fetch from service discovery API
+                // const response = await fetch('/api/services');
+                // const data = await response.json();
+                
+                updateLastUpdated();
+                updateMetrics();
+                renderServices();
+            } catch (error) {
+                console.error('Failed to refresh data:', error);
+            }
+        }
+
+        // Initialize dashboard
+        function initDashboard() {
+            renderServices();
+            updateMetrics();
+            updateLastUpdated();
+            
+            // Set up auto-refresh
+            setInterval(updateRefreshCountdown, 1000);
+            setInterval(refreshData, 30000);
+        }
+
+        // Start dashboard when page loads
+        document.addEventListener('DOMContentLoaded', initDashboard);
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            if (event.ctrlKey || event.metaKey) {
+                switch(event.key) {
+                    case 'r':
+                        event.preventDefault();
+                        refreshData();
+                        break;
+                    case '1':
+                        event.preventDefault();
+                        window.open(`http://${currentHost}:7001`, '_blank');
+                        break;
+                    case '2':
+                        event.preventDefault();
+                        window.open(`http://${currentHost}:8080`, '_blank');
+                        break;
+                    case '3':
+                        event.preventDefault();
+                        window.open(`http://${currentHost}:9000`, '_blank');
+                        break;
+                }
+            }
+        });
+
+        // Add service worker for offline functionality
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(console.error);
+        }
+    </script>
+</body>
+</html>

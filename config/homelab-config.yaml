@@ -1,0 +1,257 @@
+# Unified Homelab Configuration
+# Central configuration for all ProxMox homelab services
+
+# Global Settings
+global:
+  project_name: "proxmox-homelab"
+  version: "1.0.0"
+  environment: "production"
+  timezone: "UTC"
+  log_level: "INFO"
+
+# VM Configuration Standards
+vm_standards:
+  # VMID Ranges
+  vmid_ranges:
+    mcp: "200-209"
+    idrac: "210-219"
+    hybrid: "220-229"
+    timeshift: "230-239"
+    monitoring: "240-249"
+  
+  # Default Resource Allocation
+  resources:
+    cores: 4
+    memory_mb: 8192
+    disk_gb: 40
+    storage: "local-lvm"
+  
+  # Network Configuration
+  network:
+    bridge: "vmbr0"
+    subnet: "192.168.1.0/24"
+    gateway: "192.168.1.1"
+    dns: ["8.8.8.8", "8.8.4.4"]
+
+# Service Port Allocation
+ports:
+  # MCP Services (7001-7010)
+  mcp:
+    context7: 7001
+    desktop_commander: 7002
+    filesystem: 7003
+    reserved: "7004-7010"
+  
+  # iDRAC Services (8080-8090)
+  idrac:
+    dashboard: 8080
+    api: 8765
+    reserved: "8081-8089"
+  
+  # Time-Shift Services (8090-8099)
+  timeshift:
+    proxy: 8090
+    admin: 8091
+    reserved: "8092-8099"
+  
+  # Monitoring Services (9000-9010)
+  monitoring:
+    service_discovery: 9000
+    health_monitor: 9001
+    metrics: 9002
+    logs: 9003
+    unified_dashboard: 9010
+
+# Docker Configuration
+docker:
+  # Network Settings
+  networks:
+    homelab:
+      name: "homelab-network"
+      driver: "bridge"
+      subnet: "172.20.0.0/16"
+      gateway: "172.20.0.1"
+  
+  # Volume Settings
+  volumes:
+    base_path: "/opt/homelab/volumes"
+    backup_path: "/opt/homelab/backups"
+    
+  # Registry Settings
+  registry:
+    enabled: false
+    url: ""
+    username: ""
+    password: ""
+
+# Service Profiles
+profiles:
+  mcp:
+    description: "MCP Server Stack Only"
+    services:
+      - "context7-mcp"
+      - "desktop-commander"
+      - "filesystem-mcp"
+    dependencies: []
+    
+  idrac:
+    description: "iDRAC Management Only"
+    services:
+      - "idrac-manager"
+    dependencies: []
+    
+  timeshift:
+    description: "Time-Shift Proxy Only"
+    services:
+      - "time-shift-proxy"
+    dependencies: []
+    
+  monitoring:
+    description: "Monitoring Services Only"
+    services:
+      - "service-discovery"
+      - "health-monitor"
+      - "unified-dashboard"
+    dependencies: []
+    
+  full:
+    description: "Complete Homelab Stack"
+    services:
+      - "context7-mcp"
+      - "desktop-commander"
+      - "filesystem-mcp"
+      - "idrac-manager"
+      - "time-shift-proxy"
+      - "service-discovery"
+      - "health-monitor"
+      - "unified-dashboard"
+    dependencies: []
+
+# Health Check Configuration
+health_checks:
+  interval: 30
+  timeout: 10
+  retries: 3
+  start_period: 40
+  
+  # Service-specific health check URLs
+  endpoints:
+    context7-mcp: "/health"
+    desktop-commander: "/health"
+    filesystem-mcp: "/health"
+    idrac-manager: "/"
+    time-shift-proxy: "/health"
+    service-discovery: "/health"
+    health-monitor: "/health"
+    unified-dashboard: "/"
+
+# Backup Configuration
+backup:
+  enabled: true
+  retention_days: 30
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  include:
+    - "volumes"
+    - "configurations"
+    - "service_registry"
+  exclude:
+    - "logs"
+    - "temp"
+
+# Security Configuration
+security:
+  # SSL/TLS Settings
+  ssl:
+    enabled: false
+    cert_path: "/opt/homelab/certs"
+    auto_generate: true
+    
+  # Authentication
+  auth:
+    enabled: false
+    type: "basic"  # basic, oauth, ldap
+    
+  # Network Security
+  network:
+    firewall_enabled: false
+    allowed_networks:
+      - "192.168.1.0/24"
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+
+# Monitoring and Alerting
+monitoring:
+  # Metrics Collection
+  metrics:
+    enabled: true
+    retention: "30d"
+    scrape_interval: "15s"
+    
+  # Alerting
+  alerts:
+    enabled: false
+    webhook_url: ""
+    email_smtp: ""
+    
+  # Log Aggregation
+  logging:
+    enabled: true
+    level: "INFO"
+    retention: "7d"
+    format: "json"
+
+# Integration Settings
+integrations:
+  # Proxmox API
+  proxmox:
+    enabled: true
+    api_url: ""
+    username: ""
+    password: ""
+    verify_ssl: false
+    
+  # External Services
+  external:
+    grafana:
+      enabled: false
+      url: ""
+    prometheus:
+      enabled: false
+      url: ""
+    elasticsearch:
+      enabled: false
+      url: ""
+
+# Development Settings
+development:
+  debug: false
+  hot_reload: false
+  mock_services: false
+  test_data: false
+
+# Migration Settings
+migration:
+  # Legacy service mapping
+  legacy_services:
+    "idrac-manager": "idrac-manager"
+    "context7-mcp": "context7-mcp"
+    "desktop-commander": "desktop-commander"
+    "filesystem-mcp": "filesystem-mcp"
+    
+  # Port migration mapping
+  port_mapping:
+    "80": "8080"    # Old iDRAC dashboard port
+    "443": "8443"   # Old HTTPS port
+    "7001": "7001"  # MCP ports remain the same
+    "7002": "7002"
+    "7003": "7003"
+
+# Feature Flags
+features:
+  auto_discovery: true
+  health_monitoring: true
+  service_registry: true
+  backup_automation: true
+  ssl_termination: false
+  load_balancing: false
+  auto_scaling: false
