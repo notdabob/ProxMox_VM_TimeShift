@@ -159,8 +159,8 @@ rollback_deployment() {
     stop_services
     
     # Restore from backup
-    if [[ -f "$backup_path/docker-compose-unified.yaml" ]]; then
-        cp "$backup_path/docker-compose-unified.yaml" "$COMPOSE_FILE"
+    if [[ -f "$backup_path/docker-compose.yaml" ]]; then
+        cp "$backup_path/docker-compose.yaml" "$COMPOSE_FILE"
         print_success "Configuration restored"
     fi
     
@@ -275,18 +275,18 @@ stop_services() {
         return 0
     fi
     
-    local compose_cmd="docker-compose -f docker-compose-unified.yaml"
+    local compose_cmd="docker-compose -f $COMPOSE_FILE"
     
     if [[ -n "$VM_IP" ]]; then
         # Remote stop
         ssh -o StrictHostKeyChecking=no root@"$VM_IP" "
             cd /opt/homelab
-            $compose_cmd down --remove-orphans 2>/dev/null || true
+            docker-compose -f docker-compose.yaml down --remove-orphans 2>/dev/null || true
         "
     else
         # Local stop
         cd "$PROJECT_ROOT"
-        $compose_cmd down --remove-orphans 2>/dev/null || true
+        docker-compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
     fi
     
     print_success "Services stopped"
@@ -300,20 +300,20 @@ deploy_services() {
         return 0
     fi
     
-    local compose_cmd="docker-compose -f docker-compose-unified.yaml --profile $PROFILE"
+    local compose_cmd="docker-compose -f $COMPOSE_FILE --profile $PROFILE"
     
     if [[ -n "$VM_IP" ]]; then
         # Remote deployment
         ssh -o StrictHostKeyChecking=no root@"$VM_IP" "
             cd /opt/homelab
-            $compose_cmd pull
-            $compose_cmd up -d --build
+            docker-compose -f docker-compose.yaml --profile $PROFILE pull
+            docker-compose -f docker-compose.yaml --profile $PROFILE up -d --build
         "
     else
         # Local deployment
         cd "$PROJECT_ROOT"
-        $compose_cmd pull
-        $compose_cmd up -d --build
+        docker-compose -f "$COMPOSE_FILE" --profile "$PROFILE" pull
+        docker-compose -f "$COMPOSE_FILE" --profile "$PROFILE" up -d --build
     fi
     
     print_success "Services deployed"
@@ -339,7 +339,7 @@ wait_for_services() {
             # Remote health check
             local health_output=$(ssh -o StrictHostKeyChecking=no root@"$VM_IP" "
                 cd /opt/homelab
-                docker-compose -f docker-compose-unified.yaml --profile $PROFILE ps --format json
+                docker-compose -f docker-compose.yaml --profile $PROFILE ps --format json
             " 2>/dev/null || echo "[]")
         else
             # Local health check

@@ -179,12 +179,16 @@ configure_vm_for_type() {
     for i in {1..10}; do
         # Source shared utilities for IP detection
         local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        local utils_dir="$(dirname "$script_dir")/scripts/utils"
+        local project_root="$(dirname "$script_dir")"
+        local utils_dir="$project_root/scripts/utils"
         
         if [[ -f "$utils_dir/vm-network-utils.sh" ]]; then
             source "$utils_dir/vm-network-utils.sh"
-            vm_ip=$(util_detect_vm_ip "$vmid" 3 10)
+            if vm_ip=$(util_detect_vm_ip "$vmid" 3 10); then
+                break
+            fi
         else
+            print_warning "Shared utilities not found, using fallback method"
             # Fallback to original method
             vm_ip=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
                 grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
