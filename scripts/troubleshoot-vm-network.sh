@@ -4,18 +4,20 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# Get script directory and source utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UTILS_DIR="$SCRIPT_DIR/utils"
 
-print_status() { echo -e "${BLUE}[INFO]${NC} $1"; }
-print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# Source shared utilities
+if [[ -f "$UTILS_DIR/vm-network-utils.sh" ]]; then
+    source "$UTILS_DIR/vm-network-utils.sh"
+else
+    echo "Error: Required utility file not found: $UTILS_DIR/vm-network-utils.sh"
+    exit 1
+fi
+
+# Additional colors for this script
+CYAN='\033[0;36m'
 print_header() { echo -e "${CYAN}=== $1 ===${NC}"; }
 
 # Default values
@@ -133,12 +135,13 @@ check_vm_config() {
         print_status "QEMU Guest Agent is enabled"
         
         # Check if guest agent is responding
-        if qm agent "$vmid" ping &>/dev/null; then
+        if timeout 10 qm agent "$vmid" ping &>/dev/null; then
             print_success "Guest agent is responding"
         else
             print_warning "Guest agent is not responding"
             if [[ "$FIX_ISSUES" == "true" ]]; then
                 print_status "Guest agent may not be installed in the VM"
+                print_status "To fix: Install qemu-guest-agent in the VM and restart"
             fi
         fi
     else
@@ -182,80 +185,29 @@ check_vm_network() {
     
     print_header "VM Network Connectivity Check"
     
-    # Try to get VM IP using guest agent
-    print_status "Attempting to get VM IP address..."
-    
-    local vm_ip=""
-    local attempts=0
-    local max_attempts=5
-    
-    while [[ $attempts -lt $max_attempts ]]; do
-        if qm agent "$vmid" ping &>/dev/null; then
-            vm_ip=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
-                grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-                grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
-            
-            if [[ -n "$vm_ip" ]]; then
-                print_success "VM IP detected: $vm_ip"
-                break
-            fi
-        fi
+    # Use shared utility function for IP detection
+    local vm_ip
+    if vm_ip=$(detect_vm_ip "$vmid" 5 15); then
+        # Test connectivity using shared utility
+        test_vm_connectivity "$vm_ip"
         
-        attempts=$((attempts + 1))
-        if [[ $attempts -lt $max_attempts ]]; then
-            print_status "Waiting for network... (attempt $attempts/$max_attempts)"
-            sleep 5
-        fi
-    done
-    
-    if [[ -z "$vm_ip" ]]; then
-        print_error "Could not detect VM IP address"
-        print_warning "Possible causes:"
-        print_warning "  - VM network is not configured"
-        print_warning "  - QEMU Guest Agent is not installed"
-        print_warning "  - VM is still booting"
-        print_warning "  - DHCP server is not responding"
+        # Save VM info using shared utility
+        save_vm_info "$vmid" "$vm_ip"
+    else
+        print_warning "Primary IP detection failed, trying alternative methods..."
         
         if [[ "$FIX_ISSUES" == "true" ]]; then
-            print_status "Attempting alternative detection methods..."
-            
-            # Try to get MAC address and check DHCP leases
-            local mac=$(qm config "$vmid" | grep -oP 'net0:.*mac=\K[^,]+')
-            if [[ -n "$mac" ]]; then
-                print_status "VM MAC address: $mac"
-                
-                # Check if dnsmasq is running
-                if systemctl is-active dnsmasq &>/dev/null; then
-                    local lease_ip=$(grep -i "$mac" /var/lib/misc/dnsmasq.leases | awk '{print $3}')
-                    if [[ -n "$lease_ip" ]]; then
-                        print_success "Found DHCP lease: $lease_ip"
-                        vm_ip="$lease_ip"
-                    fi
-                fi
-            fi
-        fi
-    fi
-    
-    # If we have an IP, test connectivity
-    if [[ -n "$vm_ip" ]]; then
-        print_status "Testing connectivity to VM..."
-        
-        if ping -c 3 -W 2 "$vm_ip" &>/dev/null; then
-            print_success "VM is reachable via ping"
-            
-            # Test SSH
-            if nc -z -w 2 "$vm_ip" 22 &>/dev/null; then
-                print_success "SSH port (22) is open"
+            if vm_ip=$(detect_vm_ip_alternative "$vmid"); then
+                print_status "Testing connectivity with alternative IP..."
+                test_vm_connectivity "$vm_ip"
+                save_vm_info "$vmid" "$vm_ip"
             else
-                print_warning "SSH port (22) is not responding"
+                print_error "All IP detection methods failed"
+                return 1
             fi
         else
-            print_error "VM is not reachable via ping"
-            
-            if [[ "$FIX_ISSUES" == "true" ]]; then
-                print_status "Checking ARP table..."
-                arp -n | grep "$vm_ip" || print_warning "VM IP not in ARP table"
-            fi
+            print_warning "Use --fix to attempt alternative detection methods"
+            return 1
         fi
     fi
     

@@ -189,23 +189,44 @@ detect_vm_ip() {
         fi
     fi
     
-    # Try to get IP from Proxmox
-    for i in {1..5}; do
-        VM_IP=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
-            grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-            grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
-        
-        if [[ -n "$VM_IP" ]]; then
-            print_success "IP detected: $VM_IP"
-            return 0
-        fi
-        
-        print_status "Waiting for network configuration... (attempt $i/5)"
-        sleep 5
-    done
+    # Source shared utilities if not already loaded
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local utils_dir="$(dirname "$script_dir")/scripts/utils"
     
-    print_error "Could not detect VM IP"
-    return 1
+    if [[ -f "$utils_dir/vm-network-utils.sh" ]]; then
+        source "$utils_dir/vm-network-utils.sh"
+        
+        # Use shared utility function
+        if VM_IP=$(detect_vm_ip "$vmid" 5 15); then
+            return 0
+        else
+            print_warning "Primary detection failed, trying alternative methods..."
+            if VM_IP=$(detect_vm_ip_alternative "$vmid"); then
+                return 0
+            else
+                print_error "Could not detect VM IP using any method"
+                return 1
+            fi
+        fi
+    else
+        # Fallback to original method if utilities not available
+        for i in {1..5}; do
+            VM_IP=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
+                grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+                grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+            
+            if [[ -n "$VM_IP" ]]; then
+                print_success "IP detected: $VM_IP"
+                return 0
+            fi
+            
+            print_status "Waiting for network configuration... (attempt $i/5)"
+            sleep 5
+        done
+        
+        print_error "Could not detect VM IP"
+        return 1
+    fi
 }
 
 prepare_remote_deployment() {

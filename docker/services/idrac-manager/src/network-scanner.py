@@ -447,15 +447,29 @@ def main():
     
     # Continue scanning every 5 minutes
     log_message("Starting continuous scanning (every 5 minutes)...")
+    consecutive_failures = 0
+    max_consecutive_failures = 3
+    
     while True:
         time.sleep(300)  # 5 minutes
         try:
             log_message("Starting scheduled network scan...")
             perform_scan()
+            consecutive_failures = 0  # Reset on success
+        except KeyboardInterrupt:
+            log_message("Received interrupt signal, shutting down scanner...")
+            break
         except Exception as e:
-            log_message(f"Scheduled scan failed: {e}")
-            import traceback
-            traceback.print_exc()
+            consecutive_failures += 1
+            log_message(f"Scheduled scan failed (attempt {consecutive_failures}/{max_consecutive_failures}): {e}")
+            
+            if consecutive_failures >= max_consecutive_failures:
+                log_message("Too many consecutive failures, entering recovery mode...")
+                time.sleep(1800)  # Wait 30 minutes before retrying
+                consecutive_failures = 0
+            else:
+                import traceback
+                traceback.print_exc()
     
     return 0
 

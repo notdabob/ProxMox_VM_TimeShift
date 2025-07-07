@@ -64,3 +64,22 @@ backups/
 node_modules/
 dist/
 build/
+
+# Homelab specific
+*.iso
+*.qcow2
+*.vmdk
+vm-snapshots/
+dhcp-leases/
+proxmox-backups/
+*.ovf
+*.ova
+*.vdi
+*.vhd
+*.vhdx
+
+# VM and container data
+vm-configs/
+container-data/
+backup-*.tar.gz
+restore-*.log

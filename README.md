@@ -148,7 +148,26 @@ ProxMox_VM_TimeShift/
 - [Architecture Overview](docs/UNIFIED-ARCHITECTURE.md)
 - [Deployment Guide](docs/DEPLOYMENT-GUIDE.md)
 - [Quick Start Guide](docs/QUICK-START.md)
+- [Local Deployment Guide](DEPLOY-LOCAL.md)
+- [Comprehensive Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+- [VM Network Troubleshooting](docs/VM-220-NETWORK-DEBUG.md)
+- [Quick Fix Guide](docs/QUICK-FIX-VM-220.md)
 - [Cleanup Plan](docs/CLEANUP-PLAN.md)
+
+## 🔧 Troubleshooting
+
+If you encounter network issues with your VMs:
+
+```bash
+# Run the network troubleshooting script
+./scripts/troubleshoot-vm-network.sh --vmid 220
+
+# Attempt automatic fixes
+./scripts/troubleshoot-vm-network.sh --vmid 220 --fix
+
+# Quick fix for VM 220 specifically
+./scripts/fix-vm-220.sh
+```
 
 ## ⚠️ Important Notes
 

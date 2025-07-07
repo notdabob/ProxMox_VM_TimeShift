@@ -177,9 +177,19 @@ configure_vm_for_type() {
     # Get VM IP
     local vm_ip
     for i in {1..10}; do
-        vm_ip=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
-            grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-            grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+        # Source shared utilities for IP detection
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        local utils_dir="$(dirname "$script_dir")/scripts/utils"
+        
+        if [[ -f "$utils_dir/vm-network-utils.sh" ]]; then
+            source "$utils_dir/vm-network-utils.sh"
+            vm_ip=$(detect_vm_ip "$vmid" 3 10)
+        else
+            # Fallback to original method
+            vm_ip=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
+                grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+                grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+        fi
         
         if [[ -n "$vm_ip" ]]; then
             break

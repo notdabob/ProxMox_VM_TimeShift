@@ -6,13 +6,13 @@ Since your project is not yet on GitHub, here are the steps to deploy from your 
 
 ```bash
 # From your local machine (where the code is)
-cd /Users/lordsomer/Desktop/ProxMox_VM_TimeShift
+cd /path/to/your/ProxMox_VM_TimeShift
 
 # Copy the entire project to your ProxMox host
-scp -r . root@rg-prox01:~/ProxMox_VM_TimeShift/
+scp -r . root@YOUR_PROXMOX_HOST:~/ProxMox_VM_TimeShift/
 
 # SSH into your ProxMox host
-ssh root@rg-prox01
+ssh root@YOUR_PROXMOX_HOST
 
 # Navigate to the project
 cd ~/ProxMox_VM_TimeShift
@@ -48,7 +48,7 @@ cd ~/ProxMox_VM_TimeShift
 2. From your local machine:
 
 ```bash
-cd /Users/lordsomer/Desktop/ProxMox_VM_TimeShift
+cd /path/to/your/ProxMox_VM_TimeShift
 
 # Add GitHub remote (replace with your actual repo URL)
 git remote add origin https://github.com/notdabob/ProxMox_VM_TimeShift.git
@@ -66,14 +66,14 @@ For immediate deployment without GitHub:
 
 ```bash
 # On ProxMox host, create a temporary transfer
-ssh root@rg-prox01 "mkdir -p ~/projects/ProxMox_VM_TimeShift"
+ssh root@YOUR_PROXMOX_HOST "mkdir -p ~/projects/ProxMox_VM_TimeShift"
 
 # From your local machine
-cd /Users/lordsomer/Desktop/ProxMox_VM_TimeShift
-tar czf - . | ssh root@rg-prox01 "cd ~/projects/ProxMox_VM_TimeShift && tar xzf -"
+cd /path/to/your/ProxMox_VM_TimeShift
+tar czf - . | ssh root@YOUR_PROXMOX_HOST "cd ~/projects/ProxMox_VM_TimeShift && tar xzf -"
 
 # On ProxMox host
-ssh root@rg-prox01
+ssh root@YOUR_PROXMOX_HOST
 cd ~/projects/ProxMox_VM_TimeShift
 chmod +x deploy/*.sh
 ./deploy/deploy-stack.sh --vmid 220 --profile full

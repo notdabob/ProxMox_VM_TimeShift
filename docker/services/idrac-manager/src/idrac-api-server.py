@@ -4,22 +4,68 @@ iDRAC Local API Server
 Provides browser-based command execution without file downloads
 """
 
+# Load configuration
+def load_config():
+    """Load API configuration from config file"""
+    config_path = Path(__file__).parent.parent / "config" / "api-config.json"
+    default_config = {
+        "cors": {
+            "allowed_origins": ["http://localhost:8080"],
+            "allowed_methods": ["GET", "POST", "OPTIONS"],
+            "allowed_headers": ["Content-Type"]
+        },
+        "security": {
+            "max_request_size": 1048576,
+            "timeout": {"command_execution": 30}
+        }
+    }
+    
+    try:
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                # Merge with defaults
+                for key, value in default_config.items():
+                    if key not in config:
+                        config[key] = value
+                return config
+        else:
+            logging.warning(f"Config file not found: {config_path}, using defaults")
+            return default_config
+    except Exception as e:
+        logging.error(f"Failed to load config: {e}, using defaults")
+        return default_config
+
+# Global configuration
+API_CONFIG = load_config()
+
 import os
 import sys
 import json
 import subprocess
 import threading
+import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import time
+from pathlib import Path
 
 class iDRACCommandHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         """Handle CORS preflight requests"""
+        origin = self.headers.get('Origin', '')
+        allowed_origins = API_CONFIG['cors']['allowed_origins']
+        
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        
+        # Check if origin is allowed
+        if origin in allowed_origins or '*' in allowed_origins:
+            self.send_header('Access-Control-Allow-Origin', origin)
+        else:
+            self.send_header('Access-Control-Allow-Origin', allowed_origins[0])
+            
+        self.send_header('Access-Control-Allow-Methods', ', '.join(API_CONFIG['cors']['allowed_methods']))
+        self.send_header('Access-Control-Allow-Headers', ', '.join(API_CONFIG['cors']['allowed_headers']))
         self.end_headers()
 
     def do_GET(self):
@@ -214,9 +260,18 @@ class iDRACCommandHandler(BaseHTTPRequestHandler):
 
     def send_json_response(self, data):
         """Send JSON response with CORS headers"""
+        origin = self.headers.get('Origin', '')
+        allowed_origins = API_CONFIG['cors']['allowed_origins']
+        
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        
+        # Set appropriate CORS origin
+        if origin in allowed_origins or '*' in allowed_origins:
+            self.send_header('Access-Control-Allow-Origin', origin)
+        else:
+            self.send_header('Access-Control-Allow-Origin', allowed_origins[0])
+            
         self.end_headers()
         self.wfile.write(json.dumps(data).encode('utf-8'))
 
