@@ -62,16 +62,16 @@ show_usage() {
     echo "  --help               Show this help"
     echo ""
     echo "Available Profiles:"
-    for profile in "${PROFILES[@]}"; do
-        IFS=':' read -r name desc <<< "$profile"
-        printf "  %-12s %s\n" "$name" "$desc"
-    done
-    echo ""
-    echo "Examples:"
-    echo "  $0 --vmid 205 --profile mcp"
-    echo "  $0 --vm-ip 192.168.1.100 --type idrac"
-    echo "  $0 --local --profile full"
-    echo "  $0 --rollback --vmid 205"
+        for profile in "${PROFILES[@]}"; do
+            IFS=':' read -r name desc <<< "$profile"
+            printf "  %-12s %s\n" "$name" "$desc"
+        done
+        echo ""
+        echo "Examples:"
+        echo "  $0 --vmid 205 --profile mcp"
+        echo "  $0 --vm-ip 192.168.1.100 --type idrac"
+        echo "  $0 --local --profile full"
+        echo "  $0 --rollback --vmid 205"
 }
 
 log_message() {
