@@ -2,6 +2,14 @@
 # VM Network Utilities
 # Shared functions for VM IP detection and network operations
 
+# Get script directory and load configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source configuration loader if available
+if [[ -f "$SCRIPT_DIR/config-loader.sh" ]]; then
+    source "$SCRIPT_DIR/config-loader.sh"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,6 +21,11 @@ print_status() { echo -e "${BLUE}[INFO]${NC} $1"; }
 print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# Configuration defaults (can be overridden by config files)
+DEFAULT_SUBNET="${HOMELAB_DEFAULT_SUBNET:-192.168.1.0/24}"
+DEFAULT_GATEWAY="${HOMELAB_DEFAULT_GATEWAY:-192.168.1.1}"
+BIND_ADDRESS="${HOMELAB_BIND_ADDRESS:-0.0.0.0}"
 
 # Function to detect VM IP address using guest agent
 # Usage: util_detect_vm_ip <vmid> [max_attempts] [timeout_per_attempt]

@@ -1,0 +1,75 @@
+# Network Configuration Template
+# This file provides configurable network settings to replace hardcoded values
+
+network:
+  # Default network ranges - can be overridden per environment
+  default_subnet: "192.168.1.0/24"
+  default_gateway: "192.168.1.1"
+
+  # DNS servers
+  dns_servers:
+    - "8.8.8.8"
+    - "8.8.4.4"
+
+  # Network detection ranges for scanning
+  scan_ranges:
+    - "192.168.1.0/24"
+
+  # Service binding
+  service_binding:
+    # Use 0.0.0.0 for all interfaces, or specific IP for security
+    bind_address: "0.0.0.0"
+    # Localhost alternatives for health checks
+    health_check_hosts:
+      - "localhost"
+      - "127.0.0.1"
+      - "0.0.0.0"
+
+# CORS configuration for web services
+cors:
+  # Dynamic CORS origins - will be populated based on detected IPs
+  allowed_origins:
+    - "http://localhost:8080"
+    - "http://127.0.0.1:8080"
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+
+  # Will be dynamically added:
+  # - "http://{VM_IP}:8080"
+  # - "http://{VM_IP}:3000"
+
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "OPTIONS"
+    - "PUT"
+    - "DELETE"
+
+  allowed_headers:
+    - "Content-Type"
+    - "Authorization"
+    - "X-Requested-With"
+
+# Environment-specific overrides
+environments:
+  development:
+    network:
+      default_subnet: "192.168.1.0/24"
+      bind_address: "0.0.0.0"
+    cors:
+      # More permissive in development
+      allowed_origins:
+        - "*"
+
+  production:
+    network:
+      # More restrictive in production
+      bind_address: "127.0.0.1"
+    cors:
+      # Strict CORS in production
+      allowed_origins: [] # Will be populated dynamically
+
+  testing:
+    network:
+      default_subnet: "192.168.1.0/24"
+      default_gateway: "192.168.1.1"

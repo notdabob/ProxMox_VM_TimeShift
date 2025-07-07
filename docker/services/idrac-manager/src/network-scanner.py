@@ -89,8 +89,20 @@ def get_network_ranges():
     
     # Add fallback if no ranges detected
     if not ranges:
-        ranges.append("192.168.1.0/24")
-        log_message("Using fallback network range: 192.168.1.0/24")
+        # Load fallback ranges from configuration
+        config_file = '/app/config/api-config.json'
+        fallback_ranges = ["192.168.1.0/24"]  # Default fallback
+        
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+                    fallback_ranges = config.get('network', {}).get('scan_ranges', fallback_ranges)
+        except Exception as e:
+            log_message(f"Could not load network config, using defaults: {e}")
+        
+        ranges.extend(fallback_ranges)
+        log_message(f"Using fallback network ranges: {fallback_ranges}")
     
     # Load custom ranges
     if os.path.exists(CUSTOM_RANGES_FILE):

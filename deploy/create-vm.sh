@@ -4,6 +4,16 @@
 
 set -e
 
+# Load configuration utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UTILS_DIR="$(dirname "$SCRIPT_DIR")/scripts/utils"
+
+if [[ -f "$UTILS_DIR/config-loader.sh" ]]; then
+    source "$UTILS_DIR/config-loader.sh"
+    detect_network_config
+    export_config_vars
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

@@ -193,6 +193,13 @@ detect_vm_ip() {
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local utils_dir="$(dirname "$script_dir")/scripts/utils"
     
+    # Load configuration first
+    if [[ -f "$utils_dir/config-loader.sh" ]]; then
+        source "$utils_dir/config-loader.sh"
+        detect_network_config
+        export_config_vars
+    fi
+    
     if [[ -f "$utils_dir/vm-network-utils.sh" ]]; then
         source "$utils_dir/vm-network-utils.sh"
         

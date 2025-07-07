@@ -6,8 +6,14 @@
       "http://localhost:3000",
       "http://127.0.0.1:3000"
     ],
-    "allowed_methods": ["GET", "POST", "OPTIONS"],
-    "allowed_headers": ["Content-Type", "Authorization"]
+    "dynamic_origins": true,
+    "allowed_methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+    "allowed_headers": ["Content-Type", "Authorization", "X-Requested-With"]
+  },
+  "network": {
+    "bind_address": "0.0.0.0",
+    "default_subnet": "192.168.1.0/24",
+    "scan_ranges": ["192.168.1.0/24"]
   },
   "security": {
     "max_request_size": 1048576,
