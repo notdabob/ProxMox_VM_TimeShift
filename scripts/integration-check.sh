@@ -126,7 +126,7 @@ check_shared_utilities() {
     fi
     
     # Test function availability
-    local functions=("detect_vm_ip" "detect_vm_ip_alternative" "test_vm_connectivity" "save_vm_info" "load_vm_info")
+    local functions=("util_detect_vm_ip" "util_detect_vm_ip_alternative" "util_test_vm_connectivity" "util_save_vm_info" "util_load_vm_info")
     for func in "${functions[@]}"; do
         if declare -f "$func" >/dev/null 2>&1; then
             print_success "Function available: $func"
@@ -236,21 +236,21 @@ check_vm_integration() {
     # Test shared utility integration
     print_status "Testing IP detection with shared utilities..."
     local vm_ip
-    if vm_ip=$(detect_vm_ip "$vmid" 3 10); then
+    if vm_ip=$(util_detect_vm_ip "$vmid" 3 10); then
         print_success "IP detection successful: $vm_ip"
         
         # Test connectivity
-        if test_vm_connectivity "$vm_ip"; then
+        if util_test_vm_connectivity "$vm_ip"; then
             print_success "VM connectivity test passed"
         else
             print_warning "VM connectivity test failed"
         fi
         
         # Test info saving/loading
-        if save_vm_info "$vmid" "$vm_ip"; then
+        if util_save_vm_info "$vmid" "$vm_ip"; then
             print_success "VM info saving successful"
             
-            if load_vm_info "$vmid" >/dev/null; then
+            if util_load_vm_info "$vmid" >/dev/null; then
                 print_success "VM info loading successful"
             else
                 print_warning "VM info loading failed"
@@ -260,7 +260,7 @@ check_vm_integration() {
         fi
     else
         print_warning "IP detection failed, trying alternative methods..."
-        if vm_ip=$(detect_vm_ip_alternative "$vmid"); then
+        if vm_ip=$(util_detect_vm_ip_alternative "$vmid"); then
             print_success "Alternative IP detection successful: $vm_ip"
         else
             print_error "All IP detection methods failed"

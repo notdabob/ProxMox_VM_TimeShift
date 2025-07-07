@@ -183,7 +183,7 @@ configure_vm_for_type() {
         
         if [[ -f "$utils_dir/vm-network-utils.sh" ]]; then
             source "$utils_dir/vm-network-utils.sh"
-            vm_ip=$(detect_vm_ip "$vmid" 3 10)
+            vm_ip=$(util_detect_vm_ip "$vmid" 3 10)
         else
             # Fallback to original method
             vm_ip=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \

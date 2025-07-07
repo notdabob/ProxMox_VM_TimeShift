@@ -59,6 +59,15 @@ show_usage() {
     echo "  $0 --status --format json"
 }
 
+# Source shared utilities if available
+UTILS_DIR="$(dirname "$SCRIPT_DIR")/scripts/utils"
+if [[ -f "$UTILS_DIR/vm-network-utils.sh" ]]; then
+    source "$UTILS_DIR/vm-network-utils.sh"
+    USE_SHARED_UTILS=true
+else
+    USE_SHARED_UTILS=false
+fi
+
 detect_vm_ip() {
     local vmid="$1"
     
@@ -74,10 +83,15 @@ detect_vm_ip() {
         fi
     fi
     
-    # Try to get IP from Proxmox
-    VM_IP=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
-        grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-        grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    if [[ "$USE_SHARED_UTILS" == "true" ]]; then
+        # Use shared utility function
+        VM_IP=$(util_detect_vm_ip "$vmid" 3 10)
+    else
+        # Fallback to original method
+        VM_IP=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
+            grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+            grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    fi
     
     [[ -n "$VM_IP" ]]
 }

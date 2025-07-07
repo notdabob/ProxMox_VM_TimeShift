@@ -187,20 +187,20 @@ check_vm_network() {
     
     # Use shared utility function for IP detection
     local vm_ip
-    if vm_ip=$(detect_vm_ip "$vmid" 5 15); then
+    if vm_ip=$(util_detect_vm_ip "$vmid" 5 15); then
         # Test connectivity using shared utility
-        test_vm_connectivity "$vm_ip"
+        util_test_vm_connectivity "$vm_ip"
         
         # Save VM info using shared utility
-        save_vm_info "$vmid" "$vm_ip"
+        util_save_vm_info "$vmid" "$vm_ip"
     else
         print_warning "Primary IP detection failed, trying alternative methods..."
         
         if [[ "$FIX_ISSUES" == "true" ]]; then
-            if vm_ip=$(detect_vm_ip_alternative "$vmid"); then
+            if vm_ip=$(util_detect_vm_ip_alternative "$vmid"); then
                 print_status "Testing connectivity with alternative IP..."
-                test_vm_connectivity "$vm_ip"
-                save_vm_info "$vmid" "$vm_ip"
+                util_test_vm_connectivity "$vm_ip"
+                util_save_vm_info "$vmid" "$vm_ip"
             else
                 print_error "All IP detection methods failed"
                 return 1

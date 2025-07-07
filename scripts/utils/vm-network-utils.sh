@@ -15,8 +15,8 @@ print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Function to detect VM IP address using guest agent
-# Usage: detect_vm_ip <vmid> [max_attempts] [timeout_per_attempt]
-detect_vm_ip() {
+# Usage: util_detect_vm_ip <vmid> [max_attempts] [timeout_per_attempt]
+util_detect_vm_ip() {
     local vmid="$1"
     local max_attempts="${2:-5}"
     local timeout_per_attempt="${3:-15}"
@@ -64,8 +64,8 @@ detect_vm_ip() {
 }
 
 # Function to detect VM IP using alternative methods (DHCP leases, ARP)
-# Usage: detect_vm_ip_alternative <vmid>
-detect_vm_ip_alternative() {
+# Usage: util_detect_vm_ip_alternative <vmid>
+util_detect_vm_ip_alternative() {
     local vmid="$1"
     local vm_ip=""
     
@@ -118,8 +118,8 @@ detect_vm_ip_alternative() {
 }
 
 # Function to test VM connectivity
-# Usage: test_vm_connectivity <ip> [ssh_port]
-test_vm_connectivity() {
+# Usage: util_test_vm_connectivity <ip> [ssh_port]
+util_test_vm_connectivity() {
     local vm_ip="$1"
     local ssh_port="${2:-22}"
     
@@ -154,8 +154,8 @@ test_vm_connectivity() {
 }
 
 # Function to save VM information to a JSON file
-# Usage: save_vm_info <vmid> <ip> [mac] [bridge]
-save_vm_info() {
+# Usage: util_save_vm_info <vmid> <ip> [mac] [bridge]
+util_save_vm_info() {
     local vmid="$1"
     local vm_ip="$2"
     local mac="${3:-}"
@@ -192,8 +192,8 @@ EOF
 }
 
 # Function to load VM information from JSON file
-# Usage: load_vm_info <vmid>
-load_vm_info() {
+# Usage: util_load_vm_info <vmid>
+util_load_vm_info() {
     local vmid="$1"
     local info_file="/tmp/vm-${vmid}-info.json"
     

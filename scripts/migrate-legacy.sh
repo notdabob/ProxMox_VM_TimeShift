@@ -23,6 +23,16 @@ print_step() { echo -e "${PURPLE}[STEP]${NC} $1"; }
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Source shared utilities
+UTILS_DIR="$SCRIPT_DIR/utils"
+if [[ -f "$UTILS_DIR/vm-network-utils.sh" ]]; then
+    source "$UTILS_DIR/vm-network-utils.sh"
+    USE_SHARED_UTILS=true
+else
+    USE_SHARED_UTILS=false
+fi
+
 MIGRATION_DIR="$PROJECT_ROOT/migration"
 BACKUP_DIR="$PROJECT_ROOT/migration/backups"
 
@@ -72,13 +82,18 @@ detect_legacy_deployments() {
             local vm_name=$(echo "$vm_config" | grep "^name:" | cut -d' ' -f2- || echo "")
             
             # Try to detect VM IP
-            local vm_ip=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
-                grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-                grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4 || echo "")
+            local vm_ip=""
+            if [[ "$USE_SHARED_UTILS" == "true" ]]; then
+                vm_ip=$(util_detect_vm_ip "$vmid" 2 5)
+            else
+                vm_ip=$(qm guest cmd "$vmid" network-get-interfaces 2>/dev/null | \
+                    grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+                    grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4 || echo "")
+            fi
             
             if [[ -n "$vm_ip" ]]; then
                 # Check for legacy services
-                local services=$(ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@"$vm_ip" \
+                local services=$(ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new root@"$vm_ip" \
                     "docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null || echo ''" 2>/dev/null || echo "")
                 
                 if [[ -n "$services" ]]; then
@@ -178,9 +193,14 @@ backup_legacy_deployment() {
     fi
     
     # Get VM IP
-    local vm_ip=$(qm guest cmd "$source_vmid" network-get-interfaces 2>/dev/null | \
-        grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-        grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    local vm_ip=""
+    if [[ "$USE_SHARED_UTILS" == "true" ]]; then
+        vm_ip=$(util_detect_vm_ip "$source_vmid" 3 10)
+    else
+        vm_ip=$(qm guest cmd "$source_vmid" network-get-interfaces 2>/dev/null | \
+            grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+            grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    fi
     
     if [[ -z "$vm_ip" ]]; then
         print_error "Could not detect IP for VM $source_vmid"
@@ -264,9 +284,14 @@ validate_migration() {
     fi
     
     # Check network connectivity
-    local vm_ip=$(qm guest cmd "$source_vmid" network-get-interfaces 2>/dev/null | \
-        grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-        grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    local vm_ip=""
+    if [[ "$USE_SHARED_UTILS" == "true" ]]; then
+        vm_ip=$(util_detect_vm_ip "$source_vmid" 3 10)
+    else
+        vm_ip=$(qm guest cmd "$source_vmid" network-get-interfaces 2>/dev/null | \
+            grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+            grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    fi
     
     if [[ -z "$vm_ip" ]]; then
         validation_results+=("❌ Could not detect VM IP address")
@@ -358,19 +383,24 @@ perform_migration() {
     # Create new unified VM
     print_step "Creating new unified VM"
     if [[ -z "$target_vmid" ]]; then
-        target_vmid=$("$SCRIPT_DIR/unified-vm-create.sh" --type "$target_type" --dry-run | grep "Auto-assigned VMID:" | cut -d' ' -f3)
+        target_vmid=$("$PROJECT_ROOT/deploy/create-vm.sh" --type "$target_type" --dry-run | grep "Auto-assigned VMID:" | cut -d' ' -f3)
     fi
     
-    "$SCRIPT_DIR/unified-vm-create.sh" --type "$target_type" --vmid "$target_vmid"
+    "$PROJECT_ROOT/deploy/create-vm.sh" --type "$target_type" --vmid "$target_vmid"
     
     # Wait for new VM to be ready
     print_step "Waiting for new VM to be ready"
     sleep 30
     
     # Get new VM IP
-    local target_ip=$(qm guest cmd "$target_vmid" network-get-interfaces 2>/dev/null | \
-        grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-        grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    local target_ip=""
+    if [[ "$USE_SHARED_UTILS" == "true" ]]; then
+        target_ip=$(util_detect_vm_ip "$target_vmid" 3 10)
+    else
+        target_ip=$(qm guest cmd "$target_vmid" network-get-interfaces 2>/dev/null | \
+            grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+            grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    fi
     
     if [[ -z "$target_ip" ]]; then
         print_error "Could not detect new VM IP"
@@ -379,7 +409,7 @@ perform_migration() {
     
     # Deploy unified stack
     print_step "Deploying unified stack to new VM"
-    "$PROJECT_ROOT/deploy-unified-stack.sh" --vmid "$target_vmid" --profile full
+    "$PROJECT_ROOT/deploy/deploy-stack.sh" --vmid "$target_vmid" --profile full
     
     # Migrate data (if possible)
     print_step "Migrating service data"
@@ -405,13 +435,21 @@ migrate_service_data() {
     print_step "Migrating service data between VMs"
     
     # Get VM IPs
-    local source_ip=$(qm guest cmd "$source_vmid" network-get-interfaces 2>/dev/null | \
-        grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-        grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    local source_ip=""
+    local target_ip=""
     
-    local target_ip=$(qm guest cmd "$target_vmid" network-get-interfaces 2>/dev/null | \
-        grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
-        grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    if [[ "$USE_SHARED_UTILS" == "true" ]]; then
+        source_ip=$(util_detect_vm_ip "$source_vmid" 3 10)
+        target_ip=$(util_detect_vm_ip "$target_vmid" 3 10)
+    else
+        source_ip=$(qm guest cmd "$source_vmid" network-get-interfaces 2>/dev/null | \
+            grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+            grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+        
+        target_ip=$(qm guest cmd "$target_vmid" network-get-interfaces 2>/dev/null | \
+            grep -Eo '"ip-address": "([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' | \
+            grep -v '127.0.0.1' | head -n1 | cut -d'"' -f4)
+    fi
     
     if [[ -z "$source_ip" || -z "$target_ip" ]]; then
         print_warning "Could not detect VM IPs for data migration"

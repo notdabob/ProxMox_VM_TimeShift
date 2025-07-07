@@ -98,14 +98,14 @@ create_backup() {
     if command -v docker-compose &>/dev/null || command -v docker &>/dev/null; then
         if [[ -n "$VM_IP" ]]; then
             # Remote backup
-            ssh -o StrictHostKeyChecking=no root@"$VM_IP" "
+            ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 root@"$VM_IP" "
                 mkdir -p /tmp/backup-$backup_name
                 cd /opt/homelab 2>/dev/null || cd /root
                 docker-compose ps --format json > /tmp/backup-$backup_name/services.json 2>/dev/null || true
                 docker volume ls --format json > /tmp/backup-$backup_name/volumes.json 2>/dev/null || true
                 tar -czf /tmp/backup-$backup_name.tar.gz -C /tmp backup-$backup_name
             "
-            scp -o StrictHostKeyChecking=no root@"$VM_IP":/tmp/backup-$backup_name.tar.gz "$backup_path/"
+            scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 root@"$VM_IP":/tmp/backup-$backup_name.tar.gz "$backup_path/"
         else
             # Local backup
             docker-compose -f "$COMPOSE_FILE" ps --format json > "$backup_path/services.json" 2>/dev/null || true
@@ -197,11 +197,11 @@ detect_vm_ip() {
         source "$utils_dir/vm-network-utils.sh"
         
         # Use shared utility function
-        if VM_IP=$(detect_vm_ip "$vmid" 5 15); then
+        if VM_IP=$(util_detect_vm_ip "$vmid" 5 15); then
             return 0
         else
             print_warning "Primary detection failed, trying alternative methods..."
-            if VM_IP=$(detect_vm_ip_alternative "$vmid"); then
+            if VM_IP=$(util_detect_vm_ip_alternative "$vmid"); then
                 return 0
             else
                 print_error "Could not detect VM IP using any method"

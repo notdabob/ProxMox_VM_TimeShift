@@ -4,6 +4,17 @@ iDRAC Local API Server
 Provides browser-based command execution without file downloads
 """
 
+import os
+import sys
+import json
+import subprocess
+import threading
+import logging
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+import time
+from pathlib import Path
+
 # Load configuration
 def load_config():
     """Load API configuration from config file"""
@@ -38,17 +49,6 @@ def load_config():
 
 # Global configuration
 API_CONFIG = load_config()
-
-import os
-import sys
-import json
-import subprocess
-import threading
-import logging
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
-import time
-from pathlib import Path
 
 class iDRACCommandHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
