@@ -1,3 +1,4 @@
+---
 # Network Configuration Template
 # This file provides configurable network settings to replace hardcoded values
 
@@ -67,7 +68,7 @@ environments:
       bind_address: "127.0.0.1"
     cors:
       # Strict CORS in production
-      allowed_origins: [] # Will be populated dynamically
+      allowed_origins: []  # Will be populated dynamically
 
   testing:
     network:

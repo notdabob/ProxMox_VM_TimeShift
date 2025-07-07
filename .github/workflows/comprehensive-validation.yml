@@ -1,0 +1,220 @@
+---
+name: Comprehensive Validation
+
+"on":
+  pull_request:
+    paths:
+      - "**/*.yaml"
+      - "**/*.yml"
+      - "**/*.json"
+      - "**/*.sh"
+      - "**/*.py"
+      - "docker/**"
+      - "config/**"
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.x"
+
+jobs:
+  yaml-lint:
+    name: YAML Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-yamllint-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-yamllint-
+            ${{ runner.os }}-pip-
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install yamllint
+        run: pip install yamllint
+      
+      - name: Run yamllint
+        run: yamllint .
+      
+      - name: Upload yamllint results
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: yamllint-results
+          path: yamllint-output.txt
+
+  json-validation:
+    name: JSON Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Validate JSON files
+        run: |
+          echo "Validating JSON files..."
+          find . -name "*.json" -type f | while read file; do
+            echo "Validating $file"
+            python3 -m json.tool "$file" > /dev/null || {
+              echo "❌ Invalid JSON: $file"
+              exit 1
+            }
+          done
+          echo "✅ All JSON files are valid"
+
+  shell-check:
+    name: Shell Script Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      
+      - name: Run ShellCheck
+        run: |
+          echo "Checking shell scripts..."
+          find . -name "*.sh" -type f | while read file; do
+            echo "Checking $file"
+            shellcheck "$file" || echo "⚠️ ShellCheck issues in $file"
+          done
+
+  python-syntax:
+    name: Python Syntax Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Check Python syntax
+        run: |
+          echo "Checking Python syntax..."
+          find . -name "*.py" -type f | while read file; do
+            echo "Checking $file"
+            python3 -m py_compile "$file" || {
+              echo "❌ Syntax error in $file"
+              exit 1
+            }
+          done
+          echo "✅ All Python files have valid syntax"
+
+  docker-validation:
+    name: Docker Configuration Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Validate Docker Compose
+        run: |
+          if [ -f docker/docker-compose.yaml ]; then
+            echo "Validating Docker Compose configuration..."
+            docker-compose -f docker/docker-compose.yaml config --quiet
+            echo "✅ Docker Compose configuration is valid"
+          else
+            echo "⚠️ No Docker Compose file found"
+          fi
+      
+      - name: Check Dockerfile syntax
+        run: |
+          find . -name "Dockerfile*" -type f | while read file; do
+            echo "Checking $file"
+            docker buildx build --dry-run -f "$file" . || echo "⚠️ Issues in $file"
+          done
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Upload security scan results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-scan-results
+          path: trivy-results.sarif
+
+  configuration-validation:
+    name: Configuration Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install pyyaml jsonschema
+      
+      - name: Run configuration validation
+        run: |
+          if [ -f scripts/validate-config.py ]; then
+            python3 scripts/validate-config.py
+          else
+            echo "⚠️ Configuration validation script not found"
+          fi
+
+  summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [yaml-lint, json-validation, shell-check, python-syntax, docker-validation, security-scan, configuration-validation]
+    if: always()
+    steps:
+      - name: Check validation results
+        run: |
+          echo "## Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| YAML Lint | ${{ needs.yaml-lint.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| JSON Validation | ${{ needs.json-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Shell Check | ${{ needs.shell-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Python Syntax | ${{ needs.python-syntax.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Validation | ${{ needs.docker-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Configuration | ${{ needs.configuration-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY

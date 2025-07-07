@@ -1,8 +1,48 @@
-version: '3.8'
+---
+# Docker Compose version removed (obsolete in newer versions)
 
 # Unified Docker Compose for ProxMox Homelab Stack
 # Supports MCP, iDRAC, Time-Shift, and monitoring services
 # Standardized port allocation and service discovery
+# Enhanced with security hardening and resource management
+
+# Common environment variables
+x-common-variables: &common-variables
+  NODE_ENV: ${NODE_ENV:-production}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TZ: ${TZ:-UTC}
+
+# Common resource limits
+x-resource-limits: &resource-limits
+  deploy:
+    resources:
+      limits:
+        cpus: ${DEFAULT_CPU_LIMIT:-0.5}
+        memory: ${DEFAULT_MEMORY_LIMIT:-512M}
+      reservations:
+        cpus: ${DEFAULT_CPU_RESERVATION:-0.25}
+        memory: ${DEFAULT_MEMORY_RESERVATION:-256M}
+
+# Common security settings
+x-security-settings: &security-settings
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  cap_add:
+    - NET_BIND_SERVICE
+  read_only: ${ENABLE_READ_ONLY_ROOT:-false}
+  tmpfs:
+    - /tmp:noexec,nosuid,size=100m
+    - /var/tmp:noexec,nosuid,size=50m
+
+# Common logging configuration
+x-logging: &logging
+  logging:
+    driver: ${LOG_DRIVER:-json-file}
+    options:
+      max-size: ${LOG_MAX_SIZE:-10m}
+      max-file: ${LOG_MAX_FILES:-3}
 
 services:
   # ===== MCP SERVICES (7001-7010) =====
@@ -10,16 +50,34 @@ services:
     image: lordsomer/context7-mcp:latest
     container_name: context7-mcp
     ports:
-      - "7001:7001"
+      - "${MCP_PORT:-7001}:7001"
     volumes:
       - context7_data:/app/data
       - shared_workspace:/workspace:ro
     environment:
-      - NODE_ENV=production
-      - PORT=7001
-      - SERVICE_NAME=context7-mcp
-      - SERVICE_TYPE=mcp
+      <<: *common-variables
+      PORT: 7001
+      SERVICE_NAME: context7-mcp
+      SERVICE_TYPE: mcp
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7001/health"]
       interval: 30s
@@ -27,9 +85,11 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - homelab-network
+      - frontend
+      - backend
     labels:
       - "homelab.service=mcp"
+      - "homelab.tier=application"
       - "homelab.port=7001"
       - "homelab.description=SQLite context management"
 
@@ -55,7 +115,7 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - homelab-network
+      - frontend
     labels:
       - "homelab.service=mcp"
       - "homelab.port=7002"
@@ -83,7 +143,7 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - homelab-network
+      - frontend
     labels:
       - "homelab.service=mcp"
       - "homelab.port=7003"
@@ -115,7 +175,7 @@ services:
       retries: 3
       start_period: 60s
     networks:
-      - homelab-network
+      - frontend
     labels:
       - "homelab.service=idrac"
       - "homelab.port=8080"
@@ -147,7 +207,7 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - homelab-network
+      - frontend
     labels:
       - "homelab.service=timeshift"
       - "homelab.port=8090"
@@ -173,8 +233,11 @@ services:
         apk add --no-cache curl jq docker-cli &&
         mkdir -p /app/registry &&
         while true; do
-          echo '{\"timestamp\":\"'$(date -Iseconds)'\",\"services\":[' > /app/registry/services.json
-          docker ps --format 'table {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.Labels}}' | tail -n +2 | while read line; do
+          echo '{\"timestamp\":\"'$(date -Iseconds)'\",\"services\":[' \
+            > /app/registry/services.json
+          docker ps --format \
+            'table {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.Labels}}' | \
+            tail -n +2 | while read line; do
             echo '{},' >> /app/registry/services.json
           done
           echo ']}' >> /app/registry/services.json
@@ -182,7 +245,7 @@ services:
         done
       "
     networks:
-      - homelab-network
+      - frontend
     labels:
       - "homelab.service=monitoring"
       - "homelab.port=9000"
@@ -207,22 +270,27 @@ services:
         mkdir -p /app/data &&
         while true; do
           timestamp=\$(date -Iseconds)
-          echo '{\"timestamp\":\"\$timestamp\",\"health_checks\":[' > /app/data/health.json
-          
+          echo '{\"timestamp\":\"\$timestamp\",\"health_checks\":[' \
+            > /app/data/health.json
+
           # Check all services
-          for service in context7-mcp desktop-commander filesystem-mcp idrac-manager time-shift-proxy; do
+          for service in context7-mcp desktop-commander filesystem-mcp \
+            idrac-manager time-shift-proxy; do
             if docker inspect \$service >/dev/null 2>&1; then
-              health=\$(docker inspect --format='{{.State.Health.Status}}' \$service 2>/dev/null || echo 'unknown')
-              echo '{\"service\":\"\$service\",\"status\":\"\$health\",\"timestamp\":\"\$timestamp\"},' >> /app/data/health.json
+              health=\$(docker inspect \
+                --format='{{.State.Health.Status}}' \$service 2>/dev/null || \
+                echo 'unknown')
+              echo '{\"service\":\"\$service\",\"status\":\"\$health\",' \
+                '\"timestamp\":\"\$timestamp\"},' >> /app/data/health.json
             fi
           done
-          
+
           echo ']}' >> /app/data/health.json
           sleep 15
         done
       "
     networks:
-      - homelab-network
+      - frontend
     labels:
       - "homelab.service=monitoring"
       - "homelab.port=9001"
@@ -249,7 +317,7 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - homelab-network
+      - frontend
     labels:
       - "homelab.service=dashboard"
       - "homelab.port=9010"
@@ -273,7 +341,7 @@ volumes:
     driver: local
     labels:
       - "homelab.volume=mcp"
-  
+
   # iDRAC volumes
   idrac_data:
     driver: local
@@ -283,7 +351,7 @@ volumes:
     driver: local
     labels:
       - "homelab.volume=idrac"
-  
+
   # Time-shift volumes
   timeshift_config:
     driver: local
@@ -293,7 +361,7 @@ volumes:
     driver: local
     labels:
       - "homelab.volume=timeshift"
-  
+
   # Monitoring volumes
   service_registry:
     driver: local
@@ -307,7 +375,7 @@ volumes:
     driver: local
     labels:
       - "homelab.volume=dashboard"
-  
+
   # Shared workspace
   shared_workspace:
     driver: local
@@ -316,16 +384,43 @@ volumes:
 
 # ===== NETWORKS =====
 networks:
-  homelab-network:
-    name: homelab-network
+  frontend:
+    name: homelab-frontend
     driver: bridge
     ipam:
       driver: default
       config:
-        - subnet: 172.20.0.0/16
-          gateway: 172.20.0.1
+        - subnet: ${FRONTEND_SUBNET:-10.20.0.0/24}
+          gateway: ${FRONTEND_GATEWAY:-10.20.0.1}
     labels:
-      - "homelab.network=main"
+      - "homelab.network=frontend"
+      - "homelab.tier=public"
+
+  backend:
+    name: homelab-backend
+    driver: bridge
+    internal: true
+    ipam:
+      driver: default
+      config:
+        - subnet: ${BACKEND_SUBNET:-10.21.0.0/24}
+          gateway: ${BACKEND_GATEWAY:-10.21.0.1}
+    labels:
+      - "homelab.network=backend"
+      - "homelab.tier=internal"
+
+  monitoring:
+    name: homelab-monitoring
+    driver: bridge
+    internal: true
+    ipam:
+      driver: default
+      config:
+        - subnet: ${MONITORING_SUBNET:-10.22.0.0/24}
+          gateway: ${MONITORING_GATEWAY:-10.22.0.1}
+    labels:
+      - "homelab.network=monitoring"
+      - "homelab.tier=monitoring"
 
 # ===== CONFIGURATION PROFILES =====
 # Use with: docker-compose --profile <profile> up -d
@@ -334,7 +429,7 @@ networks:
 x-mcp-services: &mcp-services
   profiles: ["mcp", "full"]
 
-# iDRAC only profile  
+# iDRAC only profile
 x-idrac-services: &idrac-services
   profiles: ["idrac", "full"]
 

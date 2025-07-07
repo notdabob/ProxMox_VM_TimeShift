@@ -1,3 +1,4 @@
+---
 # Unified Homelab Configuration
 # Central configuration for all ProxMox homelab services
 
@@ -69,8 +70,8 @@ docker:
     homelab:
       name: "homelab-network"
       driver: "bridge"
-      subnet: "172.20.0.0/16"
-      gateway: "172.20.0.1"
+      subnet: "10.20.0.0/16"
+      gateway: "10.20.0.1"
 
   # Volume Settings
   volumes:

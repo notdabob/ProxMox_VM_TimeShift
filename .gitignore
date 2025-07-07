@@ -83,3 +83,21 @@ vm-configs/
 container-data/
 backup-*.tar.gz
 restore-*.log
+# Cleanup artifacts
+full-backup-*.tar.gz
+legacy-archive-*.tar.gz
+tmp_rovodev_*
+*.backup
+security-audit-report.txt
+
+# macOS
+.DS_Store
+.DS_Store?
+
+# Logs
+*.log
+deployment.log
+
+# Temporary files
+*.tmp
+*.temp
