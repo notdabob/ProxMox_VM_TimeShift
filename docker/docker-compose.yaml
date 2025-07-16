@@ -231,20 +231,22 @@ services:
     entrypoint: sh
     command:
       - -c
-      - '
+      - |
         apk add --no-cache curl jq docker-cli &&
         mkdir -p /app/registry &&
         while true; do
-        timestamp=$(date -Iseconds)
-        echo "{\"timestamp\":\"$timestamp\",\"services\":[" > /app/registry/services.json
-        docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.Labels}}" | \
-        tail -n +2 | while read line; do
-        echo "{}," >> /app/registry/services.json
-        done
-        echo "]}" >> /app/registry/services.json
+            docker ps --format '{{json .}}' | jq -s '{
+              timestamp: now | todate,
+              services: map({
+                name: .Names,
+                image: .Image,
+                port: .Ports,
+                status: .Status,
+                labels: (.Labels | split(",") | map(split("=") | {(.[0]): .[1]}) | add)
+              })
+            }'
         sleep 30
         done
-        '
     networks:
       - frontend
     labels:

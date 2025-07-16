@@ -313,6 +313,7 @@ deploy_services() {
         # Remote deployment
         ssh -o StrictHostKeyChecking=no root@"$VM_IP" "
             cd /opt/homelab
+            chmod +x *.sh
             docker-compose -f docker-compose.yaml --profile $PROFILE pull
             docker-compose -f docker-compose.yaml --profile $PROFILE up -d --build
         "
