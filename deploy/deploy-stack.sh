@@ -262,6 +262,10 @@ prepare_remote_deployment() {
     # Copy any additional configuration files
     if [[ -d "$PROJECT_ROOT/config" ]]; then
         scp -r -o StrictHostKeyChecking=no "$PROJECT_ROOT/config" root@"$vm_ip":/opt/homelab/
+        
+        # TODO / TEMP FIX this makes the scripts to support docker-compose.yaml executable for health-monitor and service-discovery
+        # Create deployment directory
+        ssh -o StrictHostKeyChecking=no root@"$vm_ip" "chmod +x /opt/homelab/config/*.sh"
     fi
     
     # Copy source directories for builds
