@@ -63,10 +63,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 512M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 256M
     security_opt:
       - no-new-privileges:true
@@ -156,8 +156,8 @@ services:
       dockerfile: Dockerfile
     container_name: idrac-manager
     ports:
-      - "8080:80"      # Web dashboard
-      - "8765:8765"    # API server
+      - "8080:80" # Web dashboard
+      - "8765:8765" # API server
     volumes:
       - idrac_data:/app/data
       - idrac_logs:/app/logs
@@ -189,7 +189,7 @@ services:
       dockerfile: Dockerfile
     container_name: time-shift-proxy
     ports:
-      - "8090:8090"    # Time-shift proxy
+      - "8090:8090" # Time-shift proxy
     volumes:
       - timeshift_config:/app/config
       - timeshift_logs:/app/logs
@@ -218,7 +218,7 @@ services:
     image: alpine:latest
     container_name: service-discovery
     ports:
-      - "9000:9000"    # Service registry API
+      - "9000:9000" # Service registry API
     volumes:
       - service_registry:/app/registry
       - shared_workspace:/workspace
@@ -228,22 +228,21 @@ services:
       - SERVICE_TYPE=monitoring
       - REGISTRY_PORT=9000
     restart: unless-stopped
-    command: |
-      sh -c "
-        apk add --no-cache curl jq docker-cli &&
-        mkdir -p /app/registry &&
-        while true; do
-          echo '{\"timestamp\":\"'$(date -Iseconds)'\",\"services\":[' \
-            > /app/registry/services.json
-          docker ps --format \
-            'table {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.Labels}}' | \
-            tail -n +2 | while read line; do
-            echo '{},' >> /app/registry/services.json
-          done
-          echo ']}' >> /app/registry/services.json
-          sleep 30
+    entrypoint: sh
+    command:
+      - -c
+      - |
+        apk add --no-cache curl jq docker-cli && \
+        mkdir -p /app/registry && \
+        while true; do \
+          echo "{\"timestamp\":\"$(date -Iseconds)\",\"services\":[" > /app/registry/services.json; \
+          docker ps --format 'table {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.Labels}}' | \
+            tail -n +2 | while read line; do \
+              echo "{}," >> /app/registry/services.json; \
+          done; \
+          echo "]}" >> /app/registry/services.json; \
+          sleep 30; \
         done
-      "
     networks:
       - frontend
     labels:
@@ -255,7 +254,7 @@ services:
     image: alpine:latest
     container_name: health-monitor
     ports:
-      - "9001:9001"    # Health monitoring dashboard
+      - "9001:9001" # Health monitoring dashboard
     volumes:
       - health_data:/app/data
       - shared_workspace:/workspace:ro
@@ -264,31 +263,28 @@ services:
       - SERVICE_TYPE=monitoring
       - MONITOR_PORT=9001
     restart: unless-stopped
-    command: |
-      sh -c "
-        apk add --no-cache curl jq &&
+    entrypoint: sh
+    command: >
+      -c '
+        apk add --no-cache curl jq docker-cli &&
         mkdir -p /app/data &&
         while true; do
-          timestamp=\$(date -Iseconds)
-          echo '{\"timestamp\":\"\$timestamp\",\"health_checks\":[' \
-            > /app/data/health.json
+          timestamp=$(date -Iseconds)
+          echo "{\"timestamp\":\"$timestamp\",\"health_checks\":[" > /app/data/health.json
 
           # Check all services
           for service in context7-mcp desktop-commander filesystem-mcp \
             idrac-manager time-shift-proxy; do
-            if docker inspect \$service >/dev/null 2>&1; then
-              health=\$(docker inspect \
-                --format='{{.State.Health.Status}}' \$service 2>/dev/null || \
-                echo 'unknown')
-              echo '{\"service\":\"\$service\",\"status\":\"\$health\",' \
-                '\"timestamp\":\"\$timestamp\"},' >> /app/data/health.json
+            if docker inspect $service >/dev/null 2>&1; then
+              health=$(docker inspect --format="{{.State.Health.Status}}" $service 2>/dev/null || echo "unknown")
+              echo "{\"service\":\"$service\",\"status\":\"$health\",\"timestamp\":\"$timestamp\"}," >> /app/data/health.json
             fi
           done
 
-          echo ']}' >> /app/data/health.json
+          echo "]}" >> /app/data/health.json
           sleep 15
         done
-      "
+      '
     networks:
       - frontend
     labels:
@@ -301,7 +297,7 @@ services:
     image: nginx:alpine
     container_name: unified-dashboard
     ports:
-      - "9010:80"      # Unified dashboard
+      - "9010:80" # Unified dashboard
     volumes:
       - ./config/nginx-unified.conf:/etc/nginx/nginx.conf:ro
       - dashboard_static:/usr/share/nginx/html
