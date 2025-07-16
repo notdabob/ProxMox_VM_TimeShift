@@ -1,0 +1,9 @@
+{
+  "services": [
+    "context7-mcp",
+    "desktop-commander",
+    "filesystem-mcp",
+    "idrac-manager",
+    "time-shift-proxy"
+  ]
+}

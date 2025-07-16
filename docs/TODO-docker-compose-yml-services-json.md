@@ -101,6 +101,32 @@ docker ps --format '{{json .}}' | jq -s '{
 }
 ```
 
+## repaired yaml snippet for service-discovery
+
+- need to fix health check section in docker-compose.yml
+
+```yaml
+entrypoint: sh
+command:
+  - -c
+  - |
+    apk add --no-cache curl jq docker-cli &&
+    mkdir -p /app/registry &&
+    while true; do
+        docker ps --format '{{json .}}' | jq -s '{
+          timestamp: now | todate,
+          services: map({
+            name: .Names,
+            image: .Image,
+            port: .Ports,
+            status: .Status,
+            labels: (.Labels | split(",") | map(split("=") | {(.[0]): .[1]}) | add)
+          })
+        }'
+    sleep 30
+    done
+```
+
 - no clue why it shows as hardcore_poincare but this is the microsoft powershell prebuilt docker image
 
 ### NOTE: alpine:latest is a secure and minimal base image
@@ -129,4 +155,53 @@ services:
           done
           echo ']}' >> /app/registry/services.json
           sleep 30
+```
+
+#### NOTE: health check section in docker-compose.yaml
+
+- this is the section that monitors the health of the services and updates a health.json file with their status (original code snippet)
+
+- need to copy in our network-services.json config file to our docker host as well, changes made on host will sync to the container, should revise all the configs in our containers
+- remove all this hard coding of names of services and such in our configs, needs to be more DRY and reusable / modular, we have way too many hard coded names and paths in our configs and too much duplication
+
+### NOTE: network-services.json is a config file that contains the list of services
+
+```json
+{
+  "services": [
+    "context7-mcp",
+    "desktop-commander",
+    "filesystem-mcp",
+    "idrac-manager",
+    "time-shift-proxy"
+  ]
+}
+```
+
+- original code snippet for health check section in docker-compose.yaml
+
+```yaml
+entrypoint: sh
+command:
+  - -c
+  - '
+    apk add --no-cache curl jq docker-cli &&
+    mkdir -p /app/data &&
+    while true; do
+    timestamp=$(date -Iseconds)
+    echo "{\"timestamp\":\"$timestamp\",\"health_checks\":[" > /app/data/health.json
+
+    # Check all services
+    for service in context7-mcp desktop-commander filesystem-mcp \
+    idrac-manager time-shift-proxy; do
+    if docker inspect $service >/dev/null 2>&1; then
+    health=$(docker inspect --format="{{.State.Health.Status}}" $service 2>/dev/null || echo "unknown")
+    echo "{\"service\":\"$service\",\"status\":\"$health\",\"timestamp\":\"$timestamp\"}," >> /app/data/health.json
+    fi
+    done
+
+    echo "]}" >> /app/data/health.json
+    sleep 15
+    done
+    '
 ```

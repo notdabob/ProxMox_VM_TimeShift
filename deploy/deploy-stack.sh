@@ -311,9 +311,11 @@ deploy_services() {
     
     if [[ -n "$VM_IP" ]]; then
         # Remote deployment
+        # NOTE: if change docker-compose.yaml to use script files instead for service-discovery and health then need to add file copies for them and 
+        # NOTE: to make their scripts executable before trying to run in those steps
+        # NOTE:             chmod +x *.sh
         ssh -o StrictHostKeyChecking=no root@"$VM_IP" "
             cd /opt/homelab
-            chmod +x *.sh
             docker-compose -f docker-compose.yaml --profile $PROFILE pull
             docker-compose -f docker-compose.yaml --profile $PROFILE up -d --build
         "

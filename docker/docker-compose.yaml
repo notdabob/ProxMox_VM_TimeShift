@@ -260,8 +260,10 @@ services:
     ports:
       - "9001:9001" # Health monitoring dashboard
     volumes:
+      - ./config/network-services.json:/app/config/network-services.json:ro
       - health_data:/app/data
       - shared_workspace:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - SERVICE_NAME=health-monitor
       - SERVICE_TYPE=monitoring
@@ -270,26 +272,24 @@ services:
     entrypoint: sh
     command:
       - -c
-      - '
-        apk add --no-cache curl jq docker-cli &&
-        mkdir -p /app/data &&
-        while true; do
-        timestamp=$(date -Iseconds)
-        echo "{\"timestamp\":\"$timestamp\",\"health_checks\":[" > /app/data/health.json
-
-        # Check all services
-        for service in context7-mcp desktop-commander filesystem-mcp \
-        idrac-manager time-shift-proxy; do
-        if docker inspect $service >/dev/null 2>&1; then
-        health=$(docker inspect --format="{{.State.Health.Status}}" $service 2>/dev/null || echo "unknown")
-        echo "{\"service\":\"$service\",\"status\":\"$health\",\"timestamp\":\"$timestamp\"}," >> /app/data/health.json
-        fi
+      - |
+        apk add --no-cache curl jq docker-cli && \
+        mkdir -p /app/data && \
+        while true; do \
+          timestamp=$(date -Iseconds); \
+          health_checks="["; \
+          first=true; \
+          jq -r '.services[]' /app/config/network-services.json | while IFS= read -r service; do \
+            if [ -n "$service" ] && docker inspect "$service" >/dev/null 2>&1; then \
+              health=$(docker inspect --format='{{.State.Health.Status}}' "$service" 2>/dev/null || echo "unknown"); \
+              entry="{\"service\":\"$service\",\"status\":\"$health\",\"timestamp\":\"$timestamp\"}"; \
+              if [ "$first" = true ]; then first=false; else health_checks="$health_checks,"; fi; \
+              health_checks="$health_checks$entry"; \
+            fi; \
+          done; \
+          echo "{\"timestamp\":\"$timestamp\",\"health_checks\":[$health_checks]}" > /app/data/health.json; \
+          sleep 15; \
         done
-
-        echo "]}" >> /app/data/health.json
-        sleep 15
-        done
-        '
     networks:
       - frontend
     labels:
