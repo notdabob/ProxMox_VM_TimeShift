@@ -221,6 +221,9 @@ services:
       - "9000:9000" # Service registry API
     volumes:
       - service_registry:/app/registry
+      - ./config/service-discovery.sh:/app/service-discovery.sh:ro
+      - ./config/network-services.json:/app/config/network-services.json:ro
+      - health_data:/app/data
       - shared_workspace:/workspace
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -228,25 +231,7 @@ services:
       - SERVICE_TYPE=monitoring
       - REGISTRY_PORT=9000
     restart: unless-stopped
-    entrypoint: sh
-    command:
-      - -c
-      - |
-        apk add --no-cache curl jq docker-cli &&
-        mkdir -p /app/registry &&
-        while true; do
-            docker ps --format '{{json .}}' | jq -s '{
-              timestamp: now | todate,
-              services: map({
-                name: .Names,
-                image: .Image,
-                port: .Ports,
-                status: .Status,
-                labels: (.Labels | split(",") | map(split("=") | {(.[0]): .[1]}) | add)
-              })
-            }'
-        sleep 30
-        done
+    entrypoint: /app/service-discovery.sh
     networks:
       - frontend
     labels:
