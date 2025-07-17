@@ -1,0 +1,60 @@
+---
+name: YAML Lint Validation
+
+"on":
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.x'
+
+jobs:
+  yamllint:
+    name: YAML Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-yamllint
+          restore-keys: |
+            ${{ runner.os }}-pip-yamllint-
+            ${{ runner.os }}-pip-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Run yamllint and capture output
+        run: |
+          yamllint . 2>&1 | tee yamllint-output.txt || true
+          # Check if yamllint found any issues
+          if yamllint . > /dev/null 2>&1; then
+            echo "YAMLLINT_SUCCESS=true" >> $GITHUB_ENV
+          else
+            echo "YAMLLINT_SUCCESS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Upload yamllint results
+        if: env.YAMLLINT_SUCCESS == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: yamllint-results
+          path: yamllint-output.txt
+          if-no-files-found: warn
+
+      - name: Fail job if yamllint found issues
+        if: env.YAMLLINT_SUCCESS == 'false'
+        run: |
+          echo "❌ yamllint found issues in YAML files"
+          exit 1
