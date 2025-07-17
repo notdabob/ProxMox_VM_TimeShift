@@ -5,6 +5,7 @@ on:
     paths:
       - "**/*.yaml"
       - "**/*.yml"
+  workflow_dispatch:  # Allow manual triggering via GitHub Actions UI
 
 jobs:
   yamllint:
