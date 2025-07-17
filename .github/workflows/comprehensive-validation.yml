@@ -21,7 +21,7 @@ env:
 jobs:
   yaml-lint:
     name: YAML Validation
-    uses: ./.github/workflows/reusable/yamllint.yml
+    uses: ./.github/workflows/yamllint-reusable.yml
     with:
       python-version: "3.x"
 
