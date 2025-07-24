@@ -156,8 +156,8 @@ services:
       dockerfile: Dockerfile
     container_name: idrac-manager
     ports:
-      - "8080:80" # Web dashboard
-      - "8765:8765" # API server
+      - "8080:80"  # Web dashboard
+      - "8765:8765"  # API server
     volumes:
       - idrac_data:/app/data
       - idrac_logs:/app/logs
@@ -189,7 +189,7 @@ services:
       dockerfile: Dockerfile
     container_name: time-shift-proxy
     ports:
-      - "8090:8090" # Time-shift proxy
+      - "8090:8090"  # Time-shift proxy
     volumes:
       - timeshift_config:/app/config
       - timeshift_logs:/app/logs
@@ -218,7 +218,7 @@ services:
     image: alpine:latest
     container_name: service-discovery
     ports:
-      - "9000:9000" # Service registry API
+      - "9000:9000"  # Service registry API
     volumes:
       - service_registry:/app/registry
       - ./config/service-discovery.sh:/app/service-discovery.sh:ro
@@ -243,7 +243,7 @@ services:
     image: alpine:latest
     container_name: health-monitor
     ports:
-      - "9001:9001" # Health monitoring dashboard
+      - "9001:9001"  # Health monitoring dashboard
     volumes:
       - ./config/health-monitor.sh:/app/health-monitor.sh:ro
       - ./config/network-services.json:/app/config/network-services.json:ro
@@ -268,7 +268,7 @@ services:
     image: nginx:alpine
     container_name: unified-dashboard
     ports:
-      - "9010:80" # Unified dashboard
+      - "9010:80"  # Unified dashboard
     volumes:
       - ./config/nginx-unified.conf:/etc/nginx/nginx.conf:ro
       - dashboard_static:/usr/share/nginx/html

@@ -1,6 +1,7 @@
+---
 name: "Lint YAML files"
 
-"on":
+'on':
   push:
     branches:
       - main
